@@ -1,0 +1,13 @@
+# Godot 4 editor cache and imported-asset metadata
+.godot/
+.import/
+
+# Exported builds
+export/
+*.exe
+*.pck
+*.pdb
+
+# OS / editor cruft
+.DS_Store
+*.tmp
