@@ -35,6 +35,11 @@ func setup(a: Node3D) -> void:
 	radar.setup(a.local_player)
 
 
+func show_disconnected_message() -> void:
+	status_label.text = "Host disconnected. Returning to menu..."
+	status_label.add_theme_color_override("font_color", Color(1, 0.3, 0.3))
+
+
 func update_it_status(it_peer_id: int, my_id: int) -> void:
 	if it_peer_id == my_id:
 		status_label.text = "YOU ARE IT!"
@@ -45,7 +50,7 @@ func update_it_status(it_peer_id: int, my_id: int) -> void:
 
 
 func _process(_delta: float) -> void:
-	if not arena or not arena.local_player:
+	if not arena or not arena.local_player or not multiplayer.has_multiplayer_peer():
 		return
 	var blips: Array = []
 	var my_id := multiplayer.get_unique_id()

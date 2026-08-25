@@ -22,6 +22,7 @@ func _ready() -> void:
 
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
+	NetworkManager.server_disconnected.connect(_on_host_disconnected)
 
 	var my_id := multiplayer.get_unique_id()
 	_spawn_player(my_id)
@@ -36,6 +37,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if not multiplayer.has_multiplayer_peer():
+		return
 	if tag_cooldown_timer > 0.0:
 		tag_cooldown_timer -= delta
 	if multiplayer.is_server() and it_peer_id != -1 and tag_cooldown_timer <= 0.0:
@@ -133,3 +136,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		NetworkManager.leave_game()
 		get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+
+
+func _on_host_disconnected() -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	hud.show_disconnected_message()
+	get_tree().paused = true
+	await get_tree().create_timer(2.0).timeout
+	get_tree().paused = false
+	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
