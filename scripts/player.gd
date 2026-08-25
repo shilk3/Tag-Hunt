@@ -1,6 +1,7 @@
 extends CharacterBody3D
 
 signal fuel_changed(current: float, max_value: float)
+signal dig_requested(position: Vector3, radius: float)
 
 @export var move_speed := 9.0
 @export var move_accel := 12.0
@@ -16,23 +17,55 @@ signal fuel_changed(current: float, max_value: float)
 @export var dig_cooldown := 0.12
 
 @onready var camera: Camera3D = $Camera3D
+@onready var body_mesh: MeshInstance3D = $BodyMesh
+
+const NORMAL_COLOR := Color(0.3, 0.55, 0.9)
+const TAGGED_COLOR := Color(0.9, 0.2, 0.2)
 
 var fuel: float
 var yaw := 0.0
 var pitch := 0.0
 var dig_timer := 0.0
-var voxel_world: Node = null
+var _body_material: StandardMaterial3D
 
 
 func _ready() -> void:
 	add_to_group("player")
 	fuel = max_fuel
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	voxel_world = get_tree().get_first_node_in_group("voxel_world")
 	yaw = rotation.y
+	camera.current = is_multiplayer_authority()
+	body_mesh.visible = not is_multiplayer_authority()
+	_body_material = body_mesh.get_surface_override_material(0)
+	if is_multiplayer_authority():
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func setup_networked(peer_id: int) -> void:
+	set_multiplayer_authority(peer_id, true)
+	var sync := MultiplayerSynchronizer.new()
+	sync.name = "Sync"
+	var config := SceneReplicationConfig.new()
+	config.add_property(NodePath(":position"))
+	config.add_property(NodePath(":rotation"))
+	sync.replication_config = config
+	sync.root_path = NodePath("..")
+	add_child(sync)
+	set_multiplayer_authority(peer_id, true)
+
+
+func set_is_it(is_it: bool) -> void:
+	_body_material.albedo_color = TAGGED_COLOR if is_it else NORMAL_COLOR
+	if is_it:
+		_body_material.emission_enabled = true
+		_body_material.emission = TAGGED_COLOR
+		_body_material.emission_energy_multiplier = 0.6
+	else:
+		_body_material.emission_enabled = false
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not is_multiplayer_authority():
+		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		yaw -= event.relative.x * mouse_sensitivity
 		pitch = clamp(pitch - event.relative.y * mouse_sensitivity, -1.4, 1.4)
@@ -43,6 +76,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if not is_multiplayer_authority():
+		return
+
 	var input_dir := Vector2.ZERO
 	if Input.is_action_pressed("move_forward"):
 		input_dir.y -= 1.0
@@ -88,7 +124,7 @@ func _process_dig(delta: float) -> void:
 	dig_timer -= delta
 	if not Input.is_action_pressed("dig"):
 		return
-	if dig_timer > 0.0 or voxel_world == null:
+	if dig_timer > 0.0:
 		return
 	dig_timer = dig_cooldown
 
@@ -100,4 +136,4 @@ func _process_dig(delta: float) -> void:
 	var result := space_state.intersect_ray(query)
 	if result:
 		var dig_point: Vector3 = result.position + dir * 0.15
-		voxel_world.dig_sphere(dig_point, dig_radius)
+		dig_requested.emit(dig_point, dig_radius)

@@ -20,6 +20,7 @@ func _ready() -> void:
 	player = PLAYER_SCENE.instantiate()
 	add_child(player)
 	player.global_transform.origin = Vector3(sx + 0.5, surface_y + 8.0, sz + 0.5)
+	player.dig_requested.connect(voxel_world.dig_sphere)
 
 	treasure_manager.treasure_scene = TREASURE_SCENE
 	treasure_manager.setup(voxel_world)

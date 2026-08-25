@@ -1,7 +1,7 @@
 extends Control
 
 const RADAR_SIZE := 180.0
-const RADAR_RANGE := 45.0
+const RadarDisplayScript := preload("res://scripts/radar_display.gd")
 
 var player: CharacterBody3D
 var treasure_manager: Node
@@ -51,11 +51,10 @@ func _ready() -> void:
 	win_label.visible = false
 	add_child(win_label)
 
-	radar = Control.new()
+	radar = RadarDisplayScript.new()
 	radar.size = Vector2(RADAR_SIZE, RADAR_SIZE)
 	radar.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	radar.position = Vector2(-RADAR_SIZE - 24, -RADAR_SIZE - 24)
-	radar.draw.connect(_draw_radar)
 	add_child(radar)
 
 	queue_redraw()
@@ -65,6 +64,7 @@ func setup(p: CharacterBody3D, tm: Node) -> void:
 	player = p
 	treasure_manager = tm
 	total_count = tm.treasure_count
+	radar.setup(p)
 	tm.treasure_found.connect(_on_treasure_found)
 	p.fuel_changed.connect(_on_fuel_changed)
 	_on_fuel_changed(p.fuel, p.max_fuel)
@@ -76,8 +76,23 @@ func show_win_message() -> void:
 
 
 func _process(_delta: float) -> void:
-	if radar:
-		radar.queue_redraw()
+	if not treasure_manager:
+		return
+	var blips: Array = []
+	for t in treasure_manager.treasures:
+		if not is_instance_valid(t):
+			continue
+		var rel: Vector3 = t.global_transform.origin - player.global_transform.origin
+		var col: Color
+		if rel.y > 3.0:
+			col = Color(0.4, 0.7, 1.0)
+		elif rel.y < -3.0:
+			col = Color(1.0, 0.55, 0.3)
+		else:
+			col = Color(1.0, 0.85, 0.2)
+		blips.append({"pos": t.global_transform.origin, "color": col})
+	radar.set_blips(blips)
+	radar.queue_redraw()
 
 
 func _on_fuel_changed(current: float, max_value: float) -> void:
@@ -93,40 +108,3 @@ func _on_treasure_found(count: int, total: int) -> void:
 func _draw_crosshair() -> void:
 	var center := size / 2.0
 	draw_circle(center, 3.0, Color(1, 1, 1, 0.85))
-
-
-func _draw_radar() -> void:
-	var c := RADAR_SIZE / 2.0
-	radar.draw_circle(Vector2(c, c), c, Color(0, 0, 0, 0.45))
-	radar.draw_arc(Vector2(c, c), c - 1.0, 0, TAU, 32, Color(0.6, 0.9, 0.6, 0.6), 2.0)
-	if not player or not treasure_manager:
-		return
-
-	var yaw := player.rotation.y
-	var cos_y := cos(yaw)
-	var sin_y := sin(yaw)
-	var usable_radius := c - 10.0
-
-	for t in treasure_manager.treasures:
-		if not is_instance_valid(t):
-			continue
-		var rel: Vector3 = t.global_transform.origin - player.global_transform.origin
-		var dist := Vector2(rel.x, rel.z).length()
-		if dist < 0.05:
-			continue
-		var local_x := rel.x * cos_y - rel.z * sin_y
-		var local_z := rel.x * sin_y + rel.z * cos_y
-		var dir_local := Vector2(local_x, local_z) / dist
-		var ratio := minf(dist / RADAR_RANGE, 1.0)
-		var point := Vector2(c, c) + dir_local * ratio * usable_radius
-
-		var col: Color
-		if rel.y > 3.0:
-			col = Color(0.4, 0.7, 1.0)
-		elif rel.y < -3.0:
-			col = Color(1.0, 0.55, 0.3)
-		else:
-			col = Color(1.0, 0.85, 0.2)
-		radar.draw_circle(point, 5.0, col)
-
-	radar.draw_circle(Vector2(c, c), 4.0, Color(1, 1, 1))

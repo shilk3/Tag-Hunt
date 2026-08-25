@@ -17,6 +17,7 @@ config/features=PackedStringArray("4.3", "Forward Plus")
 [autoload]
 
 InputSetup="*res://scripts/input_setup.gd"
+NetworkManager="*res://scripts/network_manager.gd"
 
 [rendering]
 

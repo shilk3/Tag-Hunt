@@ -1,10 +1,10 @@
 # Tag Hunt
 
 A 3D procedural-world game with a jetpack and a terrain-destruction tool.
-Two planned modes:
+Two modes:
 
 - **Treasure Hunt** — single player, find treasures buried in the terrain. *(implemented)*
-- **Tag / Tips** — multiplayer, catch and tag other players. *(not yet implemented)*
+- **Tag / Tips** — multiplayer, catch and tag other players over LAN. *(implemented)*
 
 Both modes share the core traversal loop: fly with a jetpack, dig through the
 world with a radius-destruction tool (leaving tunnels/caves behind), and use
@@ -12,7 +12,7 @@ a radar to find your objective.
 
 ## Status
 
-This milestone implements a playable single-player **Treasure Hunt**:
+**Treasure Hunt** (single player):
 
 - Bounded procedural voxel terrain (rolling hills, fully diggable/tunnelable)
 - Jetpack flight (WASD + mouse look, vertical thrust with a fuel meter)
@@ -21,8 +21,22 @@ This milestone implements a playable single-player **Treasure Hunt**:
   treasure, plus a fuel bar and treasure counter
 - Win state once all treasures are found
 
-Tag/Tips, networking, competitive treasure hunt, art/sound pass, and an
-infinite/streamed world are **not yet built** — see Roadmap below.
+**Tag / Tips** (multiplayer, host/join over LAN or localhost):
+
+- Same jetpack + dig-tool core loop, now with other players visible as
+  colored capsules
+- Host or join by IP from the Tag/Tips menu; terrain is generated
+  identically on every peer from a shared fixed seed (no map transfer needed)
+- Digging by any player replicates to everyone (client digs relay through
+  the host)
+- One player starts "it" (shown in red); touching another player within tag
+  range transfers "it" status, with a short cooldown to prevent instant
+  tag-back
+- Radar shows other players' direction/distance/elevation instead of
+  treasures; HUD banner shows who's currently it
+
+Competitive treasure hunt, an infinite/streamed world, and an art/sound pass
+are **not yet built** — see Roadmap below.
 
 ## Requirements
 
@@ -33,6 +47,9 @@ infinite/streamed world are **not yet built** — see Roadmap below.
 
 1. Open Godot, choose "Import", and select `project.godot` in this folder.
 2. Press `F5` (or click the Play button) to run. It starts at the main menu.
+3. For Tag/Tips: one player clicks "Host Game", the other(s) enter the
+   host's LAN IP address and click "Join Game". To test solo on one
+   machine, run two instances of the exported build and join `127.0.0.1`.
 
 ## Controls
 
@@ -52,6 +69,9 @@ infinite/streamed world are **not yet built** — see Roadmap below.
 2. **Project → Export…** → **Add…** → **Windows Desktop**.
 3. Click **Export Project**, choose a location, and Godot produces a
    standalone `.exe` that runs without the editor installed.
+4. For LAN play, players on the same network can join by IP directly.
+   Playing over the internet would additionally need port forwarding
+   (default port `8910`) or a relay — not set up here.
 
 ## Project structure
 
@@ -59,31 +79,38 @@ infinite/streamed world are **not yet built** — see Roadmap below.
 project.godot          Engine/project config, autoloads
 scripts/
   input_setup.gd        Registers input actions in code (autoload)
-  voxel_world.gd         Terrain generation, chunk meshing, digging
-  player.gd               Jetpack movement, mouse look, dig tool
-  treasure.gd              Single treasure pickup behavior
-  treasure_manager.gd     Spawns treasures, tracks collection/win state
-  hud.gd                    Fuel bar, treasure counter, radar, crosshair
-  main_menu.gd              Menu button wiring
-  treasure_hunt.gd          Wires world/player/treasures/HUD together
+  network_manager.gd     Host/join wrapper around ENet (autoload)
+  voxel_world.gd          Terrain generation, chunk meshing, digging
+  player.gd                Jetpack movement, mouse look, dig tool
+  radar_display.gd          Shared radar widget (used by both HUDs)
+  treasure.gd                Single treasure pickup behavior
+  treasure_manager.gd       Spawns treasures, tracks collection/win state
+  hud.gd                      Treasure Hunt HUD (fuel, treasures, radar)
+  tag_hud.gd                   Tag/Tips HUD (it-status banner, radar)
+  main_menu.gd                  Menu button wiring
+  tag_menu.gd                    Host/Join screen wiring
+  treasure_hunt.gd                Wires world/player/treasures/HUD together
+  tag_arena.gd                     Wires world/players/tag logic/HUD, dig
+                                    and tag-state replication over RPC
 scenes/
   main_menu.tscn
+  tag_menu.tscn
   treasure_hunt.tscn
+  tag_arena.tscn
   player.tscn
   treasure.tscn
 ```
 
 Terrain generation and world size are tunable via the exported properties on
-the `VoxelWorld` node in `treasure_hunt.tscn` (width/height/depth, chunk
-size, hill height/amplitude, noise frequency, seed).
+the `VoxelWorld` node in `treasure_hunt.tscn`/`tag_arena.tscn`
+(width/height/depth, chunk size, hill height/amplitude, noise frequency,
+seed). Tag mode always uses a fixed seed so every peer generates the same
+terrain independently.
 
 ## Roadmap / next steps
 
-- **Tag/Tips mode**: needs networking. Godot's built-in high-level
-  multiplayer API (`MultiplayerSpawner`/`MultiplayerSynchronizer` over ENet)
-  is the natural fit and would reuse the same player/jetpack/dig code.
 - **Competitive treasure hunt**: multiple players racing for the same
-  treasure set — also needs the same networking layer, plus per-player
+  treasure set, reusing the Tag/Tips networking layer plus per-player
   scoring.
 - **World streaming**: current world is a bounded grid generated fully at
   start. An infinite world would need chunk streaming based on player
@@ -91,4 +118,7 @@ size, hill height/amplitude, noise frequency, seed).
 - **Terrain visuals**: current terrain is blocky (cube) voxels for
   reliability; smooth terrain (marching cubes/surface nets) is a possible
   later visual upgrade.
-- Sound, art pass, additional dig-tool feedback (particles/decals).
+- **Internet play**: currently LAN/direct-IP only; a relay or NAT
+  punch-through service would be needed for players on different networks.
+- Sound, art pass, additional dig-tool feedback (particles/decals),
+  player names/nameplates instead of raw peer IDs.
